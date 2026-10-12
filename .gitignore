@@ -1,0 +1,9 @@
+# No secrets, no build artifacts, no local databases
+node_modules/
+.DS_Store
+*.log
+dist/
+build/
+.env
+.env.*
+exports/*.json

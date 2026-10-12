@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fuel Tracker BD</title>
+<meta name="description" content="Offline bilingual fuel tracker for vehicles: refill log, mileage stats, cost dashboard.">
+<style>
+:root{
+  --bg:#0f172a; --bg2:#111c34; --card:#1a2542; --card2:#22304f;
+  --ink:#eef2ff; --muted:#9fb0cc; --line:#2c3b5f;
+  --acc:#38bdf8; --acc2:#818cf8; --ok:#34d399; --bad:#f87171; --warn:#fbbf24;
+  --radius:14px;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#0b1122);color:var(--ink);min-height:100vh}
+.wrap{max-width:860px;margin:0 auto;padding:16px 14px 48px}
+header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:18px}
+h1{margin:0;font-size:1.55rem;letter-spacing:.3px}
+h1 .bd{background:linear-gradient(90deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.tag{color:var(--muted);font-size:.92rem;margin:6px 0 0}
+.langbtn{background:var(--card2);border:1px solid var(--line);color:var(--ink);border-radius:999px;padding:8px 16px;font-size:.95rem;cursor:pointer;white-space:nowrap}
+.langbtn:hover{border-color:var(--acc)}
+.card{background:rgba(26,37,66,.92);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+.card h2{margin:0 0 12px;font-size:1.08rem;display:flex;align-items:center;gap:8px}
+.card h2::before{content:"";width:9px;height:9px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));flex:none}
+label{display:block;font-size:.85rem;color:var(--muted);margin:10px 0 4px}
+input,select{width:100%;background:var(--bg2);border:1px solid var(--line);color:var(--ink);border-radius:10px;padding:10px 12px;font-size:1rem}
+input:focus,select:focus{outline:2px solid var(--acc);outline-offset:1px}
+input[type=date]{color-scheme:dark}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{display:inline-block;background:linear-gradient(135deg,var(--acc),var(--acc2));border:0;color:#06121f;font-weight:700;border-radius:10px;padding:11px 18px;font-size:1rem;cursor:pointer;margin-top:14px}
+.btn.ghost{background:var(--card2);color:var(--ink);border:1px solid var(--line);font-weight:600}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--bad);font-weight:600}
+.btn.sm{padding:6px 12px;font-size:.85rem;margin-top:0}
+.err{display:none;background:rgba(248,113,113,.12);border:1px solid var(--bad);color:#fecaca;border-radius:10px;padding:10px 12px;margin-top:12px;font-size:.92rem}
+.err.show{display:block}
+.ok{display:none;background:rgba(52,211,153,.12);border:1px solid var(--ok);color:#a7f3d0;border-radius:10px;padding:10px 12px;margin-top:12px;font-size:.92rem}
+.ok.show{display:block}
+table{width:100%;border-collapse:collapse;margin-top:6px;font-size:.92rem}
+th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:600;font-size:.8rem;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
+td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:6px}
+.stat{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:12px 10px;text-align:center}
+.stat .v{font-size:1.25rem;font-weight:700;font-variant-numeric:tabular-nums}
+.stat .k{font-size:.75rem;color:var(--muted);margin-top:4px}
+.stat .v.ok2{color:var(--ok)} .stat .v.bad2{color:var(--bad)}
+.vlist{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.vitem{display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;flex-wrap:wrap}
+.vitem .nm{font-weight:700}
+.vitem .ft{color:var(--muted);font-size:.85rem}
+.vitem .sp{flex:1}
+.badge{font-size:.72rem;background:rgba(56,189,248,.15);color:var(--acc);border:1px solid var(--acc);border-radius:999px;padding:2px 10px}
+.empty{color:var(--muted);text-align:center;padding:22px 10px;font-size:.95rem}
+.chartbox{overflow-x:auto}
+svg.chart{display:block;width:100%;height:auto;min-width:0}
+footer{color:var(--muted);font-size:.8rem;text-align:center;margin-top:22px;line-height:1.6}
+footer .disc{border-top:1px solid var(--line);padding-top:12px;margin-top:12px}
+[dir=rtl]{unicode-bidi:plaintext}
+@media (max-width:520px){
+  .statgrid{grid-template-columns:repeat(2,1fr)}
+  .row2{grid-template-columns:1fr}
+  th:nth-child(6),td:nth-child(6){display:none}
+  h1{font-size:1.3rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1><span data-i18n="app_title_main">Fuel Tracker</span> <span class="bd" data-i18n="app_title_bd">BD</span></h1>
+      <p class="tag" data-i18n="tagline"></p>
+    </div>
+    <button class="langbtn" id="langBtn" type="button"></button>
+  </header>
+
+  <section class="card" id="secVehicles">
+    <h2 data-i18n="sec_vehicles"></h2>
+    <div id="vehEmpty" class="empty" data-i18n="no_vehicles"></div>
+    <div class="vlist" id="vehList"></div>
+    <div class="row2">
+      <div><label for="vehName" data-i18n="vehicle_name"></label>
+        <input id="vehName" type="text" maxlength="60"></div>
+      <div><label for="vehFuel" data-i18n="fuel_type"></label>
+        <select id="vehFuel">
+          <option value="octane" data-i18n="octane"></option>
+          <option value="petrol" data-i18n="petrol"></option>
+          <option value="diesel" data-i18n="diesel"></option>
+          <option value="cng" data-i18n="cng"></option>
+        </select></div>
+    </div>
+    <button class="btn" id="addVehBtn" type="button" data-i18n="add_vehicle"></button>
+    <div class="err" id="vehErr"></div>
+  </section>
+
+  <section class="card" id="secRefill">
+    <h2 data-i18n="sec_refill"></h2>
+    <div id="refEmpty" class="empty"></div>
+    <div id="refillWrap">
+      <div class="row2">
+        <div><label for="rDate" data-i18n="date"></label><input id="rDate" type="date"></div>
+        <div><label for="rOdo" data-i18n="odometer"></label><input id="rOdo" type="number" min="0" step="1" inputmode="decimal" placeholder="0"></div>
+      </div>
+      <div class="row2">
+        <div><label for="rQty" id="qtyLabel" data-i18n="qty_l"></label><input id="rQty" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></div>
+        <div><label for="rCost" id="costLabel"></label><input id="rCost" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0"></div>
+      </div>
+      <button class="btn" id="addRefillBtn" type="button" data-i18n="add_refill"></button>
+      <div class="err" id="refErr"></div>
+    </div>
+    <div class="chartbox">
+    <table id="refTable">
+      <thead><tr>
+        <th data-i18n="th_date"></th><th data-i18n="th_odo"></th><th data-i18n="th_qty"></th>
+        <th data-i18n="th_price"></th><th data-i18n="th_cost"></th><th data-i18n="th_mileage"></th><th></th>
+      </tr></thead>
+      <tbody id="refBody"></tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="card" id="secStats">
+    <h2 data-i18n="sec_stats"></h2>
+    <div id="statsEmpty" class="empty" data-i18n="no_mileage"></div>
+    <div class="statgrid" id="statGrid" hidden>
+      <div class="stat"><div class="v" id="stAvg">-</div><div class="k" data-i18n="lifetime_avg"></div></div>
+      <div class="stat"><div class="v ok2" id="stBest">-</div><div class="k" data-i18n="best"></div></div>
+      <div class="stat"><div class="v bad2" id="stWorst">-</div><div class="k" data-i18n="worst"></div></div>
+      <div class="stat"><div class="v" id="stCount">-</div><div class="k" data-i18n="refill_count"></div></div>
+    </div>
+  </section>
+
+  <section class="card" id="secCost">
+    <h2 data-i18n="sec_cost"></h2>
+    <div class="statgrid" id="costGrid">
+      <div class="stat"><div class="v" id="cPerKm">-</div><div class="k" data-i18n="cost_per_km"></div></div>
+      <div class="stat"><div class="v" id="cTotal">-</div><div class="k" data-i18n="total_spend"></div></div>
+      <div class="stat"><div class="v" id="c30">-</div><div class="k" data-i18n="last_30d"></div></div>
+      <div class="stat"><div class="v" id="cCount">-</div><div class="k" data-i18n="refill_count"></div></div>
+    </div>
+    <label style="margin-top:14px" data-i18n="monthly_spend"></label>
+    <div class="chartbox" id="chartBox"></div>
+  </section>
+
+  <section class="card" id="secData">
+    <h2 data-i18n="sec_data"></h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn ghost" id="expBtn" type="button" data-i18n="export"></button>
+      <button class="btn ghost" id="impBtn" type="button" data-i18n="import"></button>
+      <input id="impFile" type="file" accept="application/json,.json" hidden>
+      <button class="btn danger" id="clearBtn" type="button" data-i18n="clear_all"></button>
+    </div>
+    <div class="ok" id="impOk"></div>
+    <div class="err" id="impErr"></div>
+  </section>
+
+  <footer>
+    <div>Fuel Tracker BD</div>
+    <div class="disc" data-i18n="disclaimer"></div>
+  </footer>
+</div>
+
+<script>
+'use strict';
+/* fuel-tracker-bd math core -- pure ASCII, no DOM. Shared by the app and node unit tests. */
+'use strict';
+
+const BN_DIGITS = ['\u09E6','\u09E7','\u09E8','\u09E9','\u09EA','\u09EB','\u09EC','\u09ED','\u09EE','\u09EF'];
+
+// Convert an ASCII digit string into Bengali digits. Leaves other chars untouched.
+function bnDigits(s) {
+  return String(s).replace(/[0-9]/g, d => BN_DIGITS[Number(d)]);
+}
+
+// Format a number to `dec` decimals with thousands separators (en-US), as a string.
+function fmt(n, dec) {
+  if (n === null || n === undefined || !isFinite(n)) return '\u2014';
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+
+// Sort refills chronologically (date, then odometer tiebreak).
+function sortRefills(refills) {
+  return [...refills].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.odo - b.odo));
+}
+
+// Mileage per refill: mileage[i] applies to refills[i] and equals
+// (odo[i] - odo[i-1]) / qty[i] for i >= 1; null for the first refill.
+function perRefillMileage(refills) {
+  const s = sortRefills(refills);
+  return s.map((r, i) => {
+    if (i === 0) return null;
+    const km = r.odo - s[i - 1].odo;
+    if (km <= 0 || r.qty <= 0) return null;
+    return km / r.qty;
+  });
+}
+
+// Lifetime average mileage = total km driven / total fuel of refills that have mileage.
+function lifetimeMileage(refills) {
+  const s = sortRefills(refills);
+  let km = 0, fuel = 0;
+  for (let i = 1; i < s.length; i++) {
+    const d = s[i].odo - s[i - 1].odo;
+    if (d > 0 && s[i].qty > 0) { km += d; fuel += s[i].qty; }
+  }
+  return fuel > 0 ? km / fuel : null;
+}
+
+function bestWorstMileage(refills) {
+  const ms = perRefillMileage(refills).filter(m => m !== null);
+  if (!ms.length) return { best: null, worst: null };
+  return { best: Math.max(...ms), worst: Math.min(...ms) };
+}
+
+// Cost per km = total spend / total km driven (all consecutive deltas).
+function costPerKm(refills) {
+  const s = sortRefills(refills);
+  let km = 0, spend = 0;
+  for (const r of s) spend += r.cost;
+  for (let i = 1; i < s.length; i++) { const d = s[i].odo - s[i - 1].odo; if (d > 0) km += d; }
+  return km > 0 ? spend / km : null;
+}
+
+function totalSpend(refills) { return refills.reduce((t, r) => t + r.cost, 0); }
+
+// Spend in the last 30 days relative to `nowMs` (default Date.now()).
+function last30DaysSpend(refills, nowMs) {
+  const now = nowMs !== undefined ? nowMs : Date.now();
+  const cut = now - 30 * 24 * 3600 * 1000;
+  return refills.filter(r => {
+    const t = new Date(r.date + 'T00:00:00').getTime();
+    return t >= cut && t <= now;
+  }).reduce((t, r) => t + r.cost, 0);
+}
+
+// Aggregate spend by month "YYYY-MM" for the last 12 months (relative to refDate),
+// returning an array of {key, label, spend} in chronological order.
+// refDate: Date or "YYYY-MM-DD" string; defaults to today.
+function monthlySpend(refills, refDate) {
+  const ref = refDate ? new Date(refDate + 'T00:00:00') : new Date();
+  const months = [];
+  const d = new Date(ref.getFullYear(), ref.getMonth(), 1);
+  d.setMonth(d.getMonth() - 11);
+  for (let i = 0; i < 12; i++) {
+    const key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+    const label = key.slice(5) + '/' + String(d.getFullYear()).slice(2);
+    months.push({ key, label, spend: 0 });
+    d.setMonth(d.getMonth() + 1);
+  }
+  const map = Object.fromEntries(months.map(m => [m.key, m]));
+  for (const r of refills) {
+    const key = r.date.slice(0, 7);
+    if (map[key]) map[key].spend += r.cost;
+  }
+  return months;
+}
+
+// Unit price = cost / qty, null when qty <= 0.
+function unitPrice(r) { return r.qty > 0 ? r.cost / r.qty : null; }
+
+// Refill field validation. Returns array of error keys.
+// lastOdo: highest odometer already recorded for this vehicle (null if none).
+// todayStr: "YYYY-MM-DD" string; defaults to today.
+function validateRefill(f, lastOdo, todayStr) {
+  const errs = [];
+  const today = todayStr || new Date().toISOString().slice(0, 10);
+  if (!f.date || !/^\d{4}-\d{2}-\d{2}$/.test(f.date)) errs.push('err_date');
+  else if (f.date > today) errs.push('err_future');
+  const odo = Number(f.odo);
+  if (!isFinite(odo) || odo < 0) errs.push('err_odo_num');
+  else if (lastOdo !== null && lastOdo !== undefined && odo <= lastOdo) errs.push('err_odo');
+  if (!isFinite(Number(f.qty)) || Number(f.qty) <= 0) errs.push('err_qty');
+  if (!isFinite(Number(f.cost)) || Number(f.cost) <= 0) errs.push('err_cost');
+  return errs;
+}
+
+// Validate an imported state object. Returns null when valid, else an error reason.
+function validateImport(obj) {
+  if (!obj || typeof obj !== 'object') return 'not-an-object';
+  if (!Array.isArray(obj.vehicles) || !Array.isArray(obj.refills)) return 'missing-arrays';
+  const fuelTypes = ['octane', 'petrol', 'diesel', 'cng'];
+  for (const v of obj.vehicles) {
+    if (!v || typeof v.id !== 'string' || typeof v.name !== 'string' || !v.name.trim()) return 'bad-vehicle';
+    if (!fuelTypes.includes(v.fuel)) return 'bad-fuel';
+  }
+  const ids = new Set(obj.vehicles.map(v => v.id));
+  for (const r of obj.refills) {
+    if (!r || typeof r.id !== 'string' || !ids.has(r.vehicleId)) return 'bad-refill-vehicle';
+    const e = validateRefill(r, null, '9999-12-31'); // structural check only (future allowed in old data)
+    const structural = e.filter(x => x !== 'err_future');
+    if (structural.length) return 'bad-refill-fields';
+  }
+  return null;
+}
+
+
+/* ---------- strings (pure ASCII: Bengali emitted as \uXXXX escapes) ---------- */
+const STR = { en: {
+  "active": "Active",
+  "add_refill": "Add refill",
+  "add_vehicle": "Add vehicle",
+  "app_title": "Fuel Tracker BD",
+  "best": "Best",
+  "clear_all": "Clear all data",
+  "cng": "CNG",
+  "confirm_clear": "Delete ALL vehicles and refills? This cannot be undone.",
+  "confirm_del_refill": "Delete this refill?",
+  "confirm_del_vehicle": "Delete this vehicle and all its refills?",
+  "cost_per_km": "Cost per km",
+  "date": "Date",
+  "del_refill": "Delete",
+  "del_vehicle": "Delete",
+  "diesel": "Diesel",
+  "disclaimer": "Personal tracker for educational/demo use \u2014 not official fuel data. All fuel prices are your own entries.",
+  "err_cost": "Total cost must be greater than 0.",
+  "err_date": "Please enter a valid date.",
+  "err_future": "Date cannot be in the future.",
+  "err_name": "Please enter a vehicle name.",
+  "err_odo": "Odometer must be greater than the last reading ({last} km).",
+  "err_odo_num": "Odometer must be a non-negative number.",
+  "err_qty": "Quantity must be greater than 0.",
+  "export": "Export JSON",
+  "fuel_type": "Fuel type",
+  "import": "Import JSON",
+  "import_bad": "Invalid file \u2014 no data was changed.",
+  "import_ok": "Import successful.",
+  "km_kg": "km/kg",
+  "km_l": "km/L",
+  "lang_button_en": "\u09ac\u09be\u0982\u09b2\u09be",
+  "last_30d": "Last 30 days",
+  "lifetime_avg": "Lifetime average",
+  "monthly_spend": "Monthly spend (last 12 months)",
+  "na": "\u2014",
+  "name_ph": "e.g. My bike, My car",
+  "no_mileage": "Add at least 2 refills to see mileage.",
+  "no_refills": "No refills yet. Add your first refill above.",
+  "no_vehicles": "No vehicles yet. Add one above to start tracking.",
+  "octane": "Octane",
+  "odometer": "Odometer (km)",
+  "petrol": "Petrol",
+  "price_unit": "Price/unit",
+  "qty_kg": "Quantity (kg)",
+  "qty_l": "Quantity (litres)",
+  "refill_count": "Refills",
+  "sec_cost": "Cost dashboard",
+  "sec_data": "Data",
+  "sec_refill": "Refill log",
+  "sec_stats": "Mileage stats",
+  "sec_vehicles": "Vehicles",
+  "tagline": "Track your vehicle's fuel usage, mileage and cost \u2014 fully offline",
+  "taka": "(\u09f3)",
+  "th_action": "",
+  "th_cost": "Cost (\u09f3)",
+  "th_date": "Date",
+  "th_mileage": "Mileage",
+  "th_odo": "Odometer",
+  "th_price": "\u09f3/unit",
+  "th_qty": "Qty",
+  "total_cost": "Total cost",
+  "total_spend": "Total spend",
+  "use": "Use",
+  "vehicle_name": "Vehicle name",
+  "worst": "Worst"
+}, bn: {
+  "active": "\u09b8\u0995\u09cd\u09b0\u09bf\u09af\u09bc",
+  "add_refill": "\u09b0\u09bf\u09ab\u09bf\u09b2 \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8",
+  "add_vehicle": "\u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8 \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8",
+  "app_title": "\u09ab\u09c1\u09af\u09bc\u09c7\u09b2 \u099f\u09cd\u09b0\u09cd\u09af\u09be\u0995\u09be\u09b0 \u09ac\u09bf\u09a1\u09bf",
+  "best": "\u09b8\u09c7\u09b0\u09be",
+  "clear_all": "\u09b8\u09ac \u09a1\u09c7\u099f\u09be \u09ae\u09c1\u099b\u09c1\u09a8",
+  "cng": "\u09b8\u09bf\u098f\u09a8\u099c\u09bf",
+  "confirm_clear": "\u09b8\u09ac \u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8 \u0993 \u09b0\u09bf\u09ab\u09bf\u09b2 \u09ae\u09c1\u099b\u09c7 \u09af\u09be\u09ac\u09c7? \u098f\u099f\u09bf \u09ab\u09c7\u09b0\u09be\u09a8\u09cb \u09af\u09be\u09ac\u09c7 \u09a8\u09be\u0964",
+  "confirm_del_refill": "\u098f\u0987 \u09b0\u09bf\u09ab\u09bf\u09b2\u099f\u09bf \u09ae\u09c1\u099b\u09c7 \u09ab\u09c7\u09b2\u09ac\u09c7\u09a8?",
+  "confirm_del_vehicle": "\u098f\u0987 \u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8 \u0993 \u098f\u09b0 \u09b8\u09ac \u09b0\u09bf\u09ab\u09bf\u09b2 \u09ae\u09c1\u099b\u09c7 \u09ab\u09c7\u09b2\u09ac\u09c7\u09a8?",
+  "cost_per_km": "\u09aa\u09cd\u09b0\u09a4\u09bf \u0995\u09bf\u09ae\u09bf \u0996\u09b0\u099a",
+  "date": "\u09a4\u09be\u09b0\u09bf\u0996",
+  "del_refill": "\u09ae\u09c1\u099b\u09c1\u09a8",
+  "del_vehicle": "\u09ae\u09c1\u099b\u09c1\u09a8",
+  "diesel": "\u09a1\u09bf\u099c\u09c7\u09b2",
+  "disclaimer": "\u09b6\u09bf\u0995\u09cd\u09b7\u09be\u09ae\u09c2\u09b2\u0995/\u09a1\u09c7\u09ae\u09cb \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0\u09c7\u09b0 \u099c\u09a8\u09cd\u09af \u09ac\u09cd\u09af\u0995\u09cd\u09a4\u09bf\u0997\u09a4 \u099f\u09cd\u09b0\u09cd\u09af\u09be\u0995\u09be\u09b0 \u2014 \u09b8\u09b0\u0995\u09be\u09b0\u09bf \u099c\u09cd\u09ac\u09be\u09b2\u09be\u09a8\u09bf \u09a4\u09a5\u09cd\u09af \u09a8\u09af\u09bc\u0964 \u09b8\u09ac \u099c\u09cd\u09ac\u09be\u09b2\u09be\u09a8\u09bf \u09a6\u09be\u09ae \u0986\u09aa\u09a8\u09be\u09b0 \u09a8\u09bf\u099c\u09c7\u09b0 \u098f\u09a8\u09cd\u099f\u09cd\u09b0\u09bf\u0964",
+  "err_cost": "\u09ae\u09cb\u099f \u0996\u09b0\u099a \u09e6-\u098f\u09b0 \u09ac\u09c7\u09b6\u09bf \u09b9\u09a4\u09c7 \u09b9\u09ac\u09c7\u0964",
+  "err_date": "\u09b8\u09a0\u09bf\u0995 \u09a4\u09be\u09b0\u09bf\u0996 \u09a6\u09bf\u09a8\u0964",
+  "err_future": "\u09ad\u09ac\u09bf\u09b7\u09cd\u09af\u09a4\u09c7\u09b0 \u09a4\u09be\u09b0\u09bf\u0996 \u09a6\u09c7\u0993\u09af\u09bc\u09be \u09af\u09be\u09ac\u09c7 \u09a8\u09be\u0964",
+  "err_name": "\u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae \u09a6\u09bf\u09a8\u0964",
+  "err_odo": "\u0993\u09a1\u09cb\u09ae\u09bf\u099f\u09be\u09b0 \u09b6\u09c7\u09b7 \u09b0\u09bf\u09a1\u09bf\u0982 ({last} \u0995\u09bf\u09ae\u09bf)-\u098f\u09b0 \u099a\u09c7\u09af\u09bc\u09c7 \u09ac\u09c7\u09b6\u09bf \u09b9\u09a4\u09c7 \u09b9\u09ac\u09c7\u0964",
+  "err_odo_num": "\u0993\u09a1\u09cb\u09ae\u09bf\u099f\u09be\u09b0 \u0985\u09ac\u09b6\u09cd\u09af\u0987 \u09b6\u09c2\u09a8\u09cd\u09af \u09ac\u09be \u09a7\u09a8\u09be\u09a4\u09cd\u09ae\u0995 \u09b8\u0982\u0996\u09cd\u09af\u09be \u09b9\u09a4\u09c7 \u09b9\u09ac\u09c7\u0964",
+  "err_qty": "\u09aa\u09b0\u09bf\u09ae\u09be\u09a3 \u09e6-\u098f\u09b0 \u09ac\u09c7\u09b6\u09bf \u09b9\u09a4\u09c7 \u09b9\u09ac\u09c7\u0964",
+  "export": "JSON \u098f\u0995\u09cd\u09b8\u09aa\u09cb\u09b0\u09cd\u099f",
+  "fuel_type": "\u099c\u09cd\u09ac\u09be\u09b2\u09be\u09a8\u09bf\u09b0 \u09a7\u09b0\u09a8",
+  "import_bad": "\u0985\u09ac\u09c8\u09a7 \u09ab\u09be\u0987\u09b2 \u2014 \u0995\u09cb\u09a8\u09cb \u09a1\u09c7\u099f\u09be \u09aa\u09b0\u09bf\u09ac\u09b0\u09cd\u09a4\u09a8 \u09b9\u09af\u09bc\u09a8\u09bf\u0964",
+  "import": "JSON \u0987\u09ae\u09aa\u09cb\u09b0\u09cd\u099f",
+  "import_ok": "\u0987\u09ae\u09aa\u09cb\u09b0\u09cd\u099f \u09b8\u09ab\u09b2 \u09b9\u09af\u09bc\u09c7\u099b\u09c7\u0964",
+  "km_kg": "\u0995\u09bf\u09ae\u09bf/\u0995\u09c7\u099c\u09bf",
+  "km_l": "\u0995\u09bf\u09ae\u09bf/\u09b2\u09bf\u099f\u09be\u09b0",
+  "lang_button": "English",
+  "last_30d": "\u09b6\u09c7\u09b7 \u09e9\u09e6 \u09a6\u09bf\u09a8",
+  "lifetime_avg": "\u09b8\u09be\u09b0\u09cd\u09ac\u09bf\u0995 \u0997\u09a1\u09bc",
+  "monthly_spend": "\u09ae\u09be\u09b8\u09bf\u0995 \u0996\u09b0\u099a (\u09b6\u09c7\u09b7 \u09e7\u09e8 \u09ae\u09be\u09b8)",
+  "name_ph": "\u09af\u09c7\u09ae\u09a8: \u0986\u09ae\u09be\u09b0 \u09ac\u09be\u0987\u0995, \u0986\u09ae\u09be\u09b0 \u0997\u09be\u09a1\u09bc\u09bf",
+  "no_mileage": "\u09ae\u09be\u0987\u09b2\u09c7\u099c \u09a6\u09c7\u0996\u09a4\u09c7 \u0985\u09a8\u09cd\u09a4\u09a4 \u09e8\u099f\u09bf \u09b0\u09bf\u09ab\u09bf\u09b2 \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964",
+  "no_refills": "\u098f\u0996\u09a8\u09cb \u0995\u09cb\u09a8\u09cb \u09b0\u09bf\u09ab\u09bf\u09b2 \u09a8\u09c7\u0987\u0964 \u0989\u09aa\u09b0\u09c7 \u09aa\u09cd\u09b0\u09a5\u09ae \u09b0\u09bf\u09ab\u09bf\u09b2 \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964",
+  "no_vehicles": "\u098f\u0996\u09a8\u09cb \u0995\u09cb\u09a8\u09cb \u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8 \u09a8\u09c7\u0987\u0964 \u099f\u09cd\u09b0\u09cd\u09af\u09be\u0995\u09bf\u0982 \u09b6\u09c1\u09b0\u09c1 \u0995\u09b0\u09a4\u09c7 \u0989\u09aa\u09b0\u09c7 \u09af\u09cb\u0997 \u0995\u09b0\u09c1\u09a8\u0964",
+  "octane": "\u0985\u0995\u099f\u09c7\u09a8",
+  "odometer": "\u0993\u09a1\u09cb\u09ae\u09bf\u099f\u09be\u09b0 (\u0995\u09bf\u09ae\u09bf)",
+  "petrol": "\u09aa\u09c7\u099f\u09cd\u09b0\u09b2",
+  "price_unit": "\u09aa\u09cd\u09b0\u09a4\u09bf \u0987\u0989\u09a8\u09bf\u099f \u09a6\u09be\u09ae",
+  "qty_kg": "\u09aa\u09b0\u09bf\u09ae\u09be\u09a3 (\u0995\u09c7\u099c\u09bf)",
+  "qty_l": "\u09aa\u09b0\u09bf\u09ae\u09be\u09a3 (\u09b2\u09bf\u099f\u09be\u09b0)",
+  "refill_count": "\u09b0\u09bf\u09ab\u09bf\u09b2 \u09b8\u0982\u0996\u09cd\u09af\u09be",
+  "sec_cost": "\u0996\u09b0\u099a \u09a1\u09cd\u09af\u09be\u09b6\u09ac\u09cb\u09b0\u09cd\u09a1",
+  "sec_data": "\u09a1\u09c7\u099f\u09be",
+  "sec_refill": "\u09b0\u09bf\u09ab\u09bf\u09b2 \u09b2\u0997",
+  "sec_stats": "\u09ae\u09be\u0987\u09b2\u09c7\u099c \u09aa\u09b0\u09bf\u09b8\u0982\u0996\u09cd\u09af\u09be\u09a8",
+  "sec_vehicles": "\u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8",
+  "tagline": "\u0986\u09aa\u09a8\u09be\u09b0 \u0997\u09be\u09a1\u09bc\u09bf\u09b0 \u099c\u09cd\u09ac\u09be\u09b2\u09be\u09a8\u09bf \u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0, \u09ae\u09be\u0987\u09b2\u09c7\u099c \u0993 \u0996\u09b0\u099a \u099f\u09cd\u09b0\u09cd\u09af\u09be\u0995 \u0995\u09b0\u09c1\u09a8 \u2014 \u09b8\u09ae\u09cd\u09aa\u09c2\u09b0\u09cd\u09a3 \u0985\u09ab\u09b2\u09be\u0987\u09a8",
+  "taka": "(\u09f3)",
+  "th_action": "",
+  "th_cost": "\u0996\u09b0\u099a (\u09f3)",
+  "th_date": "\u09a4\u09be\u09b0\u09bf\u0996",
+  "th_mileage": "\u09ae\u09be\u0987\u09b2\u09c7\u099c",
+  "th_odo": "\u0993\u09a1\u09cb\u09ae\u09bf\u099f\u09be\u09b0",
+  "th_price": "\u09f3/\u0987\u0989\u09a8\u09bf\u099f",
+  "th_qty": "\u09aa\u09b0\u09bf\u09ae\u09be\u09a3",
+  "total_cost": "\u09ae\u09cb\u099f \u0996\u09b0\u099a",
+  "total_spend": "\u09ae\u09cb\u099f \u0996\u09b0\u099a",
+  "use": "\u09ac\u09cd\u09af\u09ac\u09b9\u09be\u09b0 \u0995\u09b0\u09c1\u09a8",
+  "vehicle_name": "\u09af\u09be\u09a8\u09ac\u09be\u09b9\u09a8\u09c7\u09b0 \u09a8\u09be\u09ae",
+  "worst": "\u09b8\u09ac\u099a\u09c7\u09af\u09bc\u09c7 \u0996\u09be\u09b0\u09be\u09aa"
+} };
+const FUEL_KEY = { octane:'octane', petrol:'petrol', diesel:'diesel', cng:'cng' };
+
+const LS = 'fuelbd.v1';
+let state = { vehicles: [], refills: [], activeId: null, lang: 'en' };
+
+/* ?asof=YYYY-MM-DD overrides "today" (used by automated tests) */
+function asof() {
+  const m = /[?&]asof=(\d{4}-\d{2}-\d{2})/.exec(location.search);
+  return m ? m[1] : null;
+}
+function todayStr() { return asof() || new Date().toISOString().slice(0, 10); }
+function nowMs() { return asof() ? new Date(asof() + 'T00:00:00').getTime() : Date.now(); }
+
+function t(k) { return (STR[state.lang] && STR[state.lang][k]) || STR.en[k] || k; }
+function bnNum(n, dec) {
+  if (n === null || n === undefined || !isFinite(n)) return t('na');
+  const s = fmt(n, dec);
+  return state.lang === 'bn' ? bnDigits(s) : s;
+}
+function bnInt(n) {
+  const s = Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  return state.lang === 'bn' ? bnDigits(s) : s;
+}
+function bnDate(d) { // YYYY-MM-DD -> DD/MM/YYYY (or Bengali digits)
+  const s = d.slice(8, 10) + '/' + d.slice(5, 7) + '/' + d.slice(0, 4);
+  return state.lang === 'bn' ? bnDigits(s) : s;
+}
+
+function save() { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (e) {} }
+function load() {
+  try {
+    const raw = localStorage.getItem(LS);
+    if (raw) {
+      const o = JSON.parse(raw);
+      if (o && Array.isArray(o.vehicles) && Array.isArray(o.refills)) {
+        state = Object.assign({ activeId: null, lang: 'en' }, o);
+      }
+    }
+  } catch (e) {}
+  if (!STR[state.lang]) state.lang = 'en';
+}
+function uid() { return 'id' + Date.now().toString(36) + Math.floor(Math.random() * 1e6).toString(36); }
+
+function activeVehicle() { return state.vehicles.find(v => v.id === state.activeId) || null; }
+function vehicleRefills(vid) { return sortRefills(state.refills.filter(r => r.vehicleId === vid)); }
+function mileageUnit(v) { return v && v.fuel === 'cng' ? t('km_kg') : t('km_l'); }
+
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ---------- i18n ---------- */
+function applyLang() {
+  document.documentElement.lang = state.lang === 'bn' ? 'bn' : 'en';
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    if (k === 'app_title_main') { el.textContent = t('app_title').replace(' BD', ''); return; }
+    if (k === 'app_title_bd') { el.textContent = 'BD'; return; }
+    el.textContent = t(k);
+  });
+  document.getElementById('vehName').placeholder = t('name_ph');
+  document.getElementById('langBtn').textContent = state.lang === 'bn' ? t('lang_button_bn') : t('lang_button_en');
+  document.getElementById('rDate').max = todayStr();
+  render();
+}
+
+/* ---------- render ---------- */
+function render() {
+  renderVehicles(); renderRefills(); renderStats(); renderCost();
+  const av = activeVehicle();
+  document.getElementById('qtyLabel').textContent = (av && av.fuel === 'cng' ? t('qty_kg') : t('qty_l'));
+  document.getElementById('costLabel').textContent = t('total_cost') + ' ' + t('taka');
+}
+
+function renderVehicles() {
+  const list = document.getElementById('vehList');
+  document.getElementById('vehEmpty').style.display = state.vehicles.length ? 'none' : 'block';
+  list.innerHTML = state.vehicles.map(v => {
+    const active = v.id === state.activeId;
+    const n = vehicleRefills(v.id).length;
+    return '<div class="vitem">' +
+      '<span class="nm">' + esc(v.name) + '</span>' +
+      '<span class="ft">' + esc(t(v.fuel)) + ' \u00B7 ' + mileageUnit(v) + ' \u00B7 ' + bnInt(n) + ' ' + esc(t('refill_count')) + '</span>' +
+      (active ? '<span class="badge">' + esc(t('active')) + '</span>' : '') +
+      '<span class="sp"></span>' +
+      (active ? '' : '<button class="btn sm ghost" data-use="' + v.id + '">' + esc(t('use')) + '</button>') +
+      '<button class="btn sm danger" data-delv="' + v.id + '">' + esc(t('del_vehicle')) + '</button>' +
+      '</div>';
+  }).join('');
+}
+
+function renderRefills() {
+  const av = activeVehicle();
+  const wrap = document.getElementById('refillWrap');
+  const body = document.getElementById('refBody');
+  const table = document.getElementById('refTable');
+  if (!av) {
+    document.getElementById('refEmpty').textContent = t('no_vehicles');
+    document.getElementById('refEmpty').style.display = 'block';
+    wrap.style.display = 'none'; table.style.display = 'none';
+    return;
+  }
+  const rows = vehicleRefills(av.id);
+  document.getElementById('refEmpty').style.display = 'none';
+  wrap.style.display = 'block';
+  if (!rows.length) {
+    document.getElementById('refEmpty').textContent = t('no_refills');
+    document.getElementById('refEmpty').style.display = 'block';
+    table.style.display = 'none'; body.innerHTML = '';
+    return;
+  }
+  table.style.display = 'table';
+  const ms = perRefillMileage(rows);
+  const unit = mileageUnit(av);
+  body.innerHTML = rows.map((r, i) => {
+    const m = ms[i];
+    return '<tr>' +
+      '<td>' + bnDate(r.date) + '</td>' +
+      '<td class="num">' + bnInt(r.odo) + '</td>' +
+      '<td class="num">' + bnNum(r.qty, 2) + '</td>' +
+      '<td class="num">' + bnNum(unitPrice(r), 2) + '</td>' +
+      '<td class="num">' + bnNum(r.cost, 2) + '</td>' +
+      '<td class="num">' + (m === null ? t('na') : bnNum(m, 2) + ' ' + esc(unit)) + '</td>' +
+      '<td><button class="btn sm danger" data-delr="' + r.id + '">\u00D7</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderStats() {
+  const av = activeVehicle();
+  const grid = document.getElementById('statGrid');
+  const empty = document.getElementById('statsEmpty');
+  if (!av) { grid.hidden = true; empty.style.display = 'block'; empty.textContent = t('no_vehicles'); return; }
+  const rows = vehicleRefills(av.id);
+  const ms = perRefillMileage(rows).filter(m => m !== null);
+  if (ms.length < 1) { grid.hidden = true; empty.style.display = 'block'; empty.textContent = t('no_mileage'); return; }
+  grid.hidden = false; empty.style.display = 'none';
+  const unit = mileageUnit(av);
+  const avg = lifetimeMileage(rows);
+  const bw = bestWorstMileage(rows);
+  document.getElementById('stAvg').textContent = bnNum(avg, 2) + ' ' + unit;
+  document.getElementById('stBest').textContent = bnNum(bw.best, 2) + ' ' + unit;
+  document.getElementById('stWorst').textContent = bnNum(bw.worst, 2) + ' ' + unit;
+  document.getElementById('stCount').textContent = bnInt(rows.length);
+}
+
+function renderCost() {
+  const av = activeVehicle();
+  const rows = av ? vehicleRefills(av.id) : [];
+  document.getElementById('cPerKm').textContent = bnNum(costPerKm(rows), 2);
+  document.getElementById('cTotal').textContent = bnNum(totalSpend(rows), 2);
+  document.getElementById('c30').textContent = bnNum(last30DaysSpend(rows, nowMs()), 2);
+  document.getElementById('cCount').textContent = bnInt(rows.length);
+  renderChart(rows);
+}
+
+function renderChart(rows) {
+  const box = document.getElementById('chartBox');
+  const months = monthlySpend(rows, asof());
+  const vals = months.map(m => m.spend);
+  const max = Math.max(...vals, 1);
+  const W = 640, H = 220, P = { l: 46, r: 10, t: 12, b: 44 };
+  const iw = W - P.l - P.r, ih = H - P.t - P.b;
+  const step = iw / 11;
+  const pts = vals.map((v, i) => [P.l + i * step, P.t + ih - (v / max) * ih]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  const area = line + ' L' + (P.l + iw).toFixed(1) + ' ' + (P.t + ih).toFixed(1) + ' L' + P.l.toFixed(1) + ' ' + (P.t + ih).toFixed(1) + ' Z';
+  let s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(t('monthly_spend')) + '">';
+  s += '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">' +
+       '<stop offset="0" stop-color="#38bdf8" stop-opacity=".55"/><stop offset="1" stop-color="#38bdf8" stop-opacity=".05"/></linearGradient></defs>';
+  for (let gI = 0; gI <= 3; gI++) {
+    const y = P.t + (ih * gI) / 3;
+    const val = max * (1 - gI / 3);
+    s += '<line x1="' + P.l + '" y1="' + y.toFixed(1) + '" x2="' + (W - P.r) + '" y2="' + y.toFixed(1) + '" stroke="#2c3b5f" stroke-width="1"/>';
+    s += '<text x="' + (P.l - 6) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" font-size="10" fill="#9fb0cc">' + esc(bnNum(Math.round(val), 0)) + '</text>';
+  }
+  s += '<path d="' + area + '" fill="url(#g)"/>';
+  s += '<path d="' + line + '" fill="none" stroke="#38bdf8" stroke-width="2.5" stroke-linejoin="round"/>';
+  months.forEach((m, i) => {
+    const show = i === 0 || i === 11 || i % 3 === 0;
+    if (show) s += '<text x="' + pts[i][0].toFixed(1) + '" y="' + (H - 14) + '" text-anchor="middle" font-size="10" fill="#9fb0cc">' + esc(state.lang === 'bn' ? bnDigits(m.label) : m.label) + '</text>';
+  });
+  s += '</svg>';
+  box.innerHTML = s;
+}
+
+/* ---------- actions ---------- */
+function showErr(id, keys, params) {
+  const el = document.getElementById(id);
+  if (!keys.length) { el.classList.remove('show'); el.textContent = ''; return; }
+  el.innerHTML = keys.map(k => esc(t(k).replace('{last}', params && params.last !== undefined ? bnInt(params.last) : ''))).join('<br>');
+  el.classList.add('show');
+}
+
+function addVehicle() {
+  const name = document.getElementById('vehName').value.trim();
+  const fuel = document.getElementById('vehFuel').value;
+  if (!name) { showErr('vehErr', ['err_name']); return; }
+  showErr('vehErr', []);
+  const v = { id: uid(), name, fuel };
+  state.vehicles.push(v);
+  state.activeId = v.id;
+  document.getElementById('vehName').value = '';
+  save(); render();
+}
+
+function addRefill() {
+  const av = activeVehicle();
+  if (!av) { showErr('refErr', ['no_vehicles']); return; }
+  const f = {
+    date: document.getElementById('rDate').value,
+    odo: document.getElementById('rOdo').value,
+    qty: document.getElementById('rQty').value,
+    cost: document.getElementById('rCost').value
+  };
+  const rows = vehicleRefills(av.id);
+  const lastOdo = rows.length ? rows[rows.length - 1].odo : null;
+  const errs = validateRefill(f, lastOdo, todayStr());
+  if (errs.length) { showErr('refErr', errs, { last: lastOdo }); return; }
+  showErr('refErr', []);
+  state.refills.push({ id: uid(), vehicleId: av.id, date: f.date, odo: Number(f.odo), qty: Number(f.qty), cost: Number(f.cost) });
+  document.getElementById('rOdo').value = '';
+  document.getElementById('rQty').value = '';
+  document.getElementById('rCost').value = '';
+  save(); render();
+}
+
+function exportJSON() {
+  const blob = new Blob([JSON.stringify({ app: 'fuel-tracker-bd', version: 1, exportedAt: todayStr(), vehicles: state.vehicles, refills: state.refills }, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'fuel-tracker-bd-export.json';
+  document.body.appendChild(a); a.click(); a.remove();
+}
+
+function importJSON(file) {
+  const okEl = document.getElementById('impOk'), errEl = document.getElementById('impErr');
+  okEl.classList.remove('show'); errEl.classList.remove('show');
+  const rd = new FileReader();
+  rd.onload = () => {
+    let obj;
+    try { obj = JSON.parse(rd.result); } catch (e) { obj = null; }
+    const reason = validateImport(obj);
+    if (reason) { errEl.textContent = t('import_bad') + ' (' + reason + ')'; errEl.classList.add('show'); return; }
+    state.vehicles = obj.vehicles; state.refills = obj.refills;
+    if (!state.vehicles.find(v => v.id === state.activeId)) state.activeId = state.vehicles.length ? state.vehicles[0].id : null;
+    save(); render();
+    okEl.textContent = t('import_ok'); okEl.classList.add('show');
+  };
+  rd.readAsText(file);
+}
+
+/* ---------- events ---------- */
+document.getElementById('addVehBtn').addEventListener('click', addVehicle);
+document.getElementById('addRefillBtn').addEventListener('click', addRefill);
+document.getElementById('langBtn').addEventListener('click', () => {
+  state.lang = state.lang === 'en' ? 'bn' : 'en';
+  save(); applyLang();
+});
+document.getElementById('expBtn').addEventListener('click', exportJSON);
+document.getElementById('impBtn').addEventListener('click', () => document.getElementById('impFile').click());
+document.getElementById('impFile').addEventListener('change', e => { if (e.target.files[0]) importJSON(e.target.files[0]); e.target.value = ''; });
+document.getElementById('clearBtn').addEventListener('click', () => {
+  if (confirm(t('confirm_clear'))) {
+    state = { vehicles: [], refills: [], activeId: null, lang: state.lang };
+    save(); render();
+  }
+});
+document.getElementById('vehList').addEventListener('click', e => {
+  const use = e.target.getAttribute('data-use');
+  const del = e.target.getAttribute('data-delv');
+  if (use) { state.activeId = use; save(); render(); }
+  if (del && confirm(t('confirm_del_vehicle'))) {
+    state.vehicles = state.vehicles.filter(v => v.id !== del);
+    state.refills = state.refills.filter(r => r.vehicleId !== del);
+    if (state.activeId === del) state.activeId = state.vehicles.length ? state.vehicles[0].id : null;
+    save(); render();
+  }
+});
+document.getElementById('refBody').addEventListener('click', e => {
+  const del = e.target.getAttribute('data-delr');
+  if (del && confirm(t('confirm_del_refill'))) {
+    state.refills = state.refills.filter(r => r.id !== del);
+    save(); render();
+  }
+});
+
+load();
+applyLang();
+</script>
+</body>
+</html>
